@@ -1,0 +1,87 @@
+var COST = 2
+var RATIONALITY = 4
+var prec = 100
+
+// Generate array of size N+1 of 0...N
+var genArray = function(N) {
+  return N > 0? genArray(N-1).concat(N) : [0];
+}
+
+// Discretized Distributions
+var DiscreteUniform = function(N) {
+  return Discrete({ps:map(function() {1/(N+1)}, genArray(N))})
+};
+
+var DiscreteNormal = function(N) {
+  return Discrete({ps:map(function(k) {Math.exp(Gaussian({mu:0.25, sigma:0.15}).score(k/(N)))}, 
+                          genArray(N))});
+}
+
+var DiscreteBeta = function(N, a, b) {
+  // This ones a bit weird - ignores endpoints w/ prob 0
+  return Discrete({ps:map(function(k) {Math.exp(Beta({a:a, b:b}).score((k+1)/(N+2)))}, 
+                          genArray(N))});
+}
+
+// Priors
+var worldPrior = function() {
+    return (sample(DiscreteBeta(prec, 1, 9)))/prec;
+};
+
+var thresholdPrior = function() {
+    return (sample(DiscreteUniform(prec)))/prec;
+};
+
+var utterancePrior = function() {
+    var lexicon = ["", "safe", "dangerous"];
+    return lexicon[randomInteger(lexicon.length)];
+};
+
+
+// Literal meaning and cost
+var semantics = function(u, w, t) {
+    return u == "dangerous" ? w >= t : 
+           u == "safe" ? w <= t :
+           true;
+};
+var cost = function(u) {
+    return u == ""?  0 : COST;
+};
+
+// Agents
+var LiteralListener = cache(function(utterance, threshold) {
+    Infer({method: 'enumerate'},
+          function(){
+              var world = worldPrior();
+              condition(semantics(utterance, world, threshold));
+              return world;
+          }
+    );
+});
+
+var L1Speaker = cache(function(world, threshold) {
+    Infer({method: 'enumerate'},
+          function() {
+              var utterance = utterancePrior();
+              var utility = LiteralListener(utterance, threshold).score(world)
+              factor(RATIONALITY * (utility - cost(utterance)));
+              return utterance;
+          }
+    );
+});
+
+var L1Listener = function(utterance) {
+    Infer({method: 'enumerate'},
+          function() {
+              var world = worldPrior();
+              var threshold = thresholdPrior();
+              factor(L1Speaker(world, threshold).score(utterance));
+              return {world:world, threshold:threshold};
+          }
+    );
+};
+
+//Visualization
+viz.auto(Infer({method:'enumerate'}, worldPrior));
+viz.marginals(L1Listener("safe"));
+

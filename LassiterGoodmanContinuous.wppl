@@ -1,10 +1,8 @@
-var COST = 0.6
+var COST = 2/3
 var RATIONALITY = 4
 
-
-
-var kdeScore = cache(function(dist, value, sigma) {
-  return Math.log(expectation(Infer({ method: 'MCMC', samples:100}, function() {
+var kdeScore = cache(function(dist, value, sigma) {  
+  return Math.log(expectation(Infer({ method: 'MCMC', samples:1000}, function() {
     var x = sample(dist);
     return Math.exp(Gaussian({ mu: x, sigma: sigma }).score(value));
   })));
@@ -24,7 +22,7 @@ var utterancePrior = function() {
 };
 
 var semantics = function(u, w, t) {
-    return u == "tall" ? w > t :
+    return u == "tall" ? w > t : 
            u == "short"? w < t :
            true;
 };
@@ -54,7 +52,7 @@ var L1Speaker = cache(function(world, threshold) {
 });
 
 var L1Listener = function(utterance) {
-    Infer({method: 'rejection', samples:1000},
+    Infer({method: 'MCMC', samples:1000, burn:200},
           function() {
               var world = worldPrior();
               var threshold = thresholdPrior();
@@ -64,3 +62,4 @@ var L1Listener = function(utterance) {
     );
 };
 viz.marginals(L1Listener("tall"));
+

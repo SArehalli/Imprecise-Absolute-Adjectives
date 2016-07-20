@@ -1,0 +1,90 @@
+var COST = 2/3
+var RATIONALITY = 4
+var prec = 100
+
+// Generate array of size N+1 of 0...N
+var genArray = function(N) {
+  return N > 0? genArray(N-1).concat(N) : [0];
+}
+
+// Discretized Distributions
+var DiscreteUniform = cache(function(N) {
+  return Discrete({ps:map(function() {1/(N+1)}, genArray(N))})
+});
+
+var DiscreteNormal = cache(function(N, m, s) {
+  return Discrete({ps:map(function(k) {Math.exp(Gaussian({mu:m, sigma:s}).score(k/(N)))}, 
+                          genArray(N))});
+});
+
+var DiscreteBeta = cache(function(N, a, b) {
+  // This ones a bit weird - ignore endpoints w/ prob 0
+  return Discrete({ps:map(function(k) {Math.exp(Beta({a:a, b:b}).score((k+1)/(N+2)))}, 
+                          genArray(N))});
+});
+
+// Priors
+var worldPrior = function() {
+    return (sample(DiscreteBeta(prec, 1, 9)))/prec;
+};
+
+var utterancePrior = function() {
+    var lexicon = ["", "safe", "dangerous"];
+    return lexicon[randomInteger(lexicon.length)];
+};
+
+var granularityPrior = function() {
+    return (sample(DiscreteNormal(prec, 0.2, 0.15)) + 1)/prec;
+}
+
+
+// Literal meaning and cost - threshold fixed at max
+var semantics = function(u, w) {
+    return u == "dangerous" ? w >0 : 
+           u == "safe"? w == 0 :
+           true;
+};
+
+var cost = function(u) {
+    return u == ""? 0 : COST;
+};
+
+// Agents
+var LiteralListener = cache(function(utterance) {
+    Infer({method: 'enumerate'},
+          function(){
+              var world = worldPrior();
+              condition(semantics(utterance, world));
+              return world;
+          }
+    );
+});
+
+var L1Speaker = cache(function(world, granularity) {
+    Infer({method: 'enumerate'},
+          function() {
+              var utterance = utterancePrior();
+              // Generate a Normal centered at a sample from the literal listener (IE, what the listener would interpret)
+              // with variance equal to the granularity (how far the listener can be from the truth before we mind) and use the log-prob
+              // to weight the choice of utterance.
+              var utility = Gaussian({mu:sample(LiteralListener(utterance)), sigma:granularity}).score(world);
+              factor(RATIONALITY * (utility - cost(utterance)));
+              return utterance;
+          }
+    );
+});
+
+var L1Listener = function(utterance) {
+    Infer({method: 'enumerate'},
+          function() {
+              var world = worldPrior();
+              var granularity = granularityPrior();
+              factor(L1Speaker(world, granularity).score(utterance));
+              return {world:world, granularity:granularity};
+          }
+    );
+};
+
+//Visualization
+viz.auto(Infer({method:'enumerate'}, worldPrior));
+viz.marginals(L1Listener("safe"));

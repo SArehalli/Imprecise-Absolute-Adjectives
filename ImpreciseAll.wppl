@@ -1,0 +1,121 @@
+var COST = 2
+var RATIONALITY = 4
+var prec = 10
+
+// Generate array of size N+1 of 0...N
+var genArray = function(N) {
+  return N > 0? genArray(N-1).concat(N) : [0];
+}
+
+// Generate all possible world/affect pairs
+var cross = function(x) {return cross_(x,x)}
+var cross_ = function(x, y) {
+    return x >= 0? zip(repeat(y + 1, function() {return(x)}), genArray(y)).concat(cross_(x - 1, y)) :
+                    [];
+                  
+}
+
+var objectify = function(x, prec1, prec2) {
+  return {world:x[0]/prec1, affect:x[1]/prec2}
+}
+
+var states = map(function(x) {objectify(x, prec, 1)}, cross_(prec, 1));
+
+// Why do I feel like I'm rewriting the standard library of any reasonable language???
+var equal = function(a,b) {
+  if (a.length != b.length) 
+    return false;
+  if (a.length == 0)
+    return true
+  return a[0] == b[0]? equal(a.slice(1), b.slice(1)) : false;
+}
+
+// Discretized Distributions
+var DiscreteUniform = function(N) {
+  return Discrete({ps:map(function() {1/(N+1)}, genArray(N))})
+};
+
+var DiscreteNormal = function(N, m, s) {
+  return Discrete({ps:map(function(k) {Math.exp(Gaussian({mu:m, sigma:s}).score(k/(N)))}, 
+                          genArray(N))});
+};
+
+var DiscreteBeta = function(N, a, b) {
+  // This ones a bit weird - ignore endpoints w/ prob 0
+  return Discrete({ps:map(function(k) {Math.exp(Beta({a:a, b:b}).score((k+1)/(N+2)))}, 
+                          genArray(N))});
+};
+
+// Priors
+var worldPrior = function() {
+    return (sample(DiscreteNormal(prec, 0.25, 1)))/prec;
+};
+
+var lexicon = ["", "some", "all"];
+var utterancePrior = function() {
+    return lexicon[randomInteger(lexicon.length)];
+};
+
+var affectPrior = function(world) {
+    return flip((0.85 * world) + 0.10)? 1 : 0;
+}
+var goals = [function(w,a) {return [w]},
+             function(w,a) {return [a]},
+             function(w,a) {return [w, a]}];
+
+var goalPrior = function() {
+    return goals[randomInteger(goals.length)];
+};
+
+
+// Literal meaning and cost - threshold fixed at max
+var semantics = function(u, w) {
+    return u == "all" ? w == 1 : 
+           u == "some"? w > 0 :
+           true;
+};
+
+var cost = function(u) {
+    return u == ""? 0 : COST;
+}
+
+// Agents
+
+var LiteralListener = cache(function(utterance) {
+    Infer({method: 'enumerate'},
+          function(){
+              var world = worldPrior();
+              var affect = affectPrior(world);
+              condition(semantics(utterance, world));
+              return {world:world, affect:affect};
+          }
+    );
+});
+
+var L1Speaker = (function(world, affect, goal) {
+    Infer({method: 'enumerate'},
+          function() {
+              var utterance = utterancePrior();
+              var l0_interp = sample(LiteralListener(utterance));
+              condition(equal(goal(l0_interp.world, l0_interp.affect), goal(world, affect)))
+              return utterance;
+          }
+    );
+});
+
+var L1Listener = function(utterance) {
+    Infer({method: 'enumerate'},
+          function() {
+              var world = worldPrior();
+              var affect = affectPrior(world);
+              var goal = goalPrior();
+              factor(L1Speaker(world, affect, goal).score(utterance))
+              return {world:world, affect:affect};
+          }
+    );
+};
+//Visualization
+// viz.auto(Infer({method:'enumerate'}, worldPrior));
+viz.marginals(L1Listener("all"));
+
+ 
