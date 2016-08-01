@@ -1,6 +1,6 @@
 var COST = 2
 var RATIONALITY = 4
-var prec = 10
+var prec = 100
 
 // Generate array of size N+1 of 0...N
 var genArray = function(N) {
@@ -48,16 +48,17 @@ var DiscreteBeta = function(N, a, b) {
 
 // Priors
 var worldPrior = function() {
-    return (sample(DiscreteNormal(prec, 0.25, 1)))/prec;
+    return (sample(DiscreteBeta(prec, 0.3, 0.3)))/prec;
 };
 
-var lexicon = ["none", "some", "all"];
+var lexicon = ["", "full", "empty"];
+
 var utterancePrior = function() {
     return lexicon[randomInteger(lexicon.length)];
 };
 
 var affectPrior = function(world) {
-    return flip((0.85 * world) + 0.10)? 1 : 0;
+    return 0.10 + (0.85 * world * world)
 }
 var goals = [function(w,a) {return [w]},
              function(w,a) {return [a]}];
@@ -69,10 +70,9 @@ var goalPrior = function() {
 
 // Literal meaning and cost - threshold fixed at max
 var semantics = function(u, w) {
-    return u == "all" ? w == 1 : 
-           u == "some"? w > 0 :
-           u == "none"? w == 0 :
-           false;
+    return u == "full" ? w == 1 : 
+           u == "empty"? w == 0 :
+           true;
 };
 
 var cost = function(u) {
@@ -85,7 +85,7 @@ var LiteralListener = cache(function(utterance) {
     Infer({method: 'enumerate'},
           function(){
               var world = worldPrior();
-              var affect = affectPrior(world);
+              var affect = flip(affectPrior(world)) ? 1 : 0;
               condition(semantics(utterance, world));
               return {world:world, affect:affect};
           }
@@ -107,7 +107,7 @@ var L1Listener = function(utterance) {
     Infer({method: 'enumerate'},
           function() {
               var world = worldPrior();
-              var affect = affectPrior(world);
+              var affect = flip(affectPrior(world))? 1 : 0;
               var goal = goalPrior();
               factor(L1Speaker(world, affect, goal).score(utterance))
               return {world:world, affect:affect};
@@ -115,5 +115,14 @@ var L1Listener = function(utterance) {
     );
 };
 //Visualization
-// viz.auto(Infer({method:'enumerate'}, worldPrior));
-worldPrior();
+//viz.auto(Infer({method:'enumerate'}, worldPrior));
+viz.line(map(function(k) {k/prec}, genArray(prec)), map(function(k) {affectPrior(k/prec)}, genArray(prec)))
+viz.auto(Infer({method:'enumerate'}, worldPrior));
+print("full")
+viz.marginals(L1Listener("full"));
+print("empty")
+viz.marginals(L1Listener("empty"));
+print("null")
+viz.marginals(L1Listener(""));
+
+ 

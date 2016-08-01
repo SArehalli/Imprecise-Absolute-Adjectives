@@ -25,11 +25,11 @@ var DiscreteBeta = cache(function(N, a, b) {
 
 // Priors
 var worldPrior = function() {
-    return (sample(DiscreteBeta(prec, 1, 9)))/prec;
+    return (sample(DiscreteBeta(prec, 0.3, 0.3)))/prec;
 };
 
 var utterancePrior = function() {
-    var lexicon = ["", "safe", "dangerous"];
+    var lexicon = ["", "full", "empty"];
     return lexicon[randomInteger(lexicon.length)];
 };
 
@@ -40,8 +40,8 @@ var granularityPrior = function() {
 
 // Literal meaning and cost - threshold fixed at max
 var semantics = function(u, w) {
-    return u == "dangerous" ? w >0 : 
-           u == "safe"? w == 0 :
+    return u == "empty" ? w == 0 : 
+           u == "full"? w == 1 :
            true;
 };
 
@@ -87,4 +87,7 @@ var L1Listener = function(utterance) {
 
 //Visualization
 viz.auto(Infer({method:'enumerate'}, worldPrior));
-viz.marginals(L1Listener("safe"));
+print("full")
+viz.marginals(L1Listener("full"));
+print("empty")
+viz.marginals(L1Listener("empty"));

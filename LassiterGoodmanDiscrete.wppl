@@ -25,7 +25,7 @@ var DiscreteBeta = function(N, a, b) {
 
 // Priors
 var worldPrior = function() {
-    return (sample(DiscreteBeta(prec, 1, 9)))/prec;
+    return (sample(DiscreteBeta(prec, 0.3, 0.3)))/prec;
 };
 
 var thresholdPrior = function() {
@@ -33,15 +33,15 @@ var thresholdPrior = function() {
 };
 
 var utterancePrior = function() {
-    var lexicon = ["", "safe", "dangerous"];
+    var lexicon = ["", "full", "empty"];
     return lexicon[randomInteger(lexicon.length)];
 };
 
 
 // Literal meaning and cost
 var semantics = function(u, w, t) {
-    return u == "dangerous" ? w >= t : 
-           u == "safe" ? w <= t :
+    return u == "full" ? w >= t : 
+           u == "empty" ? w <= t :
            true;
 };
 var cost = function(u) {
@@ -82,6 +82,11 @@ var L1Listener = function(utterance) {
 };
 
 //Visualization
-viz.auto(Infer({method:'enumerate'}, worldPrior));
-viz.marginals(L1Listener("safe"));
+viz.auto(Infer({method:'enumerate'}, worldPrior), {fileName: 'degreeprior_LG.svg'});
+viz.marginals(L1Listener("full"), {fileName: 'full_LG.svg'});
+viz.marginals(L1Listener("empty"), {fileName: 'empty_LG.svg'});
 
+// Save data
+//var file = webpplCsv.openFile("LG13.csv")
+//webpplCsv.writeMarginals(file, L1Listener("full"))
+//webpplCsv.closeFile(file)
