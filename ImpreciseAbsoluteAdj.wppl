@@ -58,7 +58,7 @@ var utterancePrior = function() {
 };
 
 var affectPrior = function(world) {
-    return 0.10 + (0.85 * world * world)
+    return 0.10 + (0.85 * world)
 }
 var goals = [function(w,a) {return [w]},
              function(w,a) {return [a]}];
@@ -80,49 +80,52 @@ var cost = function(u) {
 }
 
 // Agents
+var generatePlots = function(x) {
 
-var LiteralListener = cache(function(utterance) {
-    Infer({method: 'enumerate'},
-          function(){
-              var world = worldPrior();
-              var affect = flip(affectPrior(world)) ? 1 : 0;
-              condition(semantics(utterance, world));
-              return {world:world, affect:affect};
-          }
-    );
-});
+    var a = (x[0] + 1)/10;
+    var b = (x[1] + 1)/10;
 
-var L1Speaker = (function(world, affect, goal) {
-    Infer({method: 'enumerate'},
-          function() {
-              var utterance = utterancePrior();
-              var l0_interp = sample(LiteralListener(utterance));
-              condition(equal(goal(l0_interp.world, l0_interp.affect), goal(world, affect)))
-              return utterance;
-          }
-    );
-});
+    var worldPrior = function() {return (sample(DiscreteBeta(prec, a, b)))/prec;};
 
-var L1Listener = function(utterance) {
-    Infer({method: 'enumerate'},
-          function() {
-              var world = worldPrior();
-              var affect = flip(affectPrior(world))? 1 : 0;
-              var goal = goalPrior();
-              factor(L1Speaker(world, affect, goal).score(utterance))
-              return {world:world, affect:affect};
-          }
-    );
-};
-//Visualization
-//viz.auto(Infer({method:'enumerate'}, worldPrior));
-viz.line(map(function(k) {k/prec}, genArray(prec)), map(function(k) {affectPrior(k/prec)}, genArray(prec)))
-viz.auto(Infer({method:'enumerate'}, worldPrior));
-print("full")
-viz.marginals(L1Listener("full"));
-print("empty")
-viz.marginals(L1Listener("empty"));
-print("null")
-viz.marginals(L1Listener(""));
+    var LiteralListener = cache(function(utterance) {
+        Infer({method: 'enumerate'},
+              function(){
+                  var world = worldPrior();
+                  var affect = flip(affectPrior(world)) ? 1 : 0;
+                  condition(semantics(utterance, world));
+                  return {world:world, affect:affect};
+              }
+        );
+    });
 
- 
+    var L1Speaker = (function(world, affect, goal) {
+        Infer({method: 'enumerate'},
+              function() {
+                  var utterance = utterancePrior();
+                  var l0_interp = sample(LiteralListener(utterance));
+                  condition(equal(goal(l0_interp.world, l0_interp.affect), goal(world, affect)))
+                  return utterance;
+              }
+        );
+    });
+
+    var L1Listener = function(utterance) {
+        Infer({method: 'enumerate'},
+              function() {
+                  var world = worldPrior();
+                  var affect = flip(affectPrior(world))? 1 : 0;
+                  var goal = goalPrior();
+                  factor(L1Speaker(world, affect, goal).score(utterance))
+                  return {world:world, affect:affect};
+              }
+        );
+    };
+    //Visualization
+
+    viz.auto(Infer({method:'enumerate'}, worldPrior), {fileName: a + "_" + b + 'degreePrior_goal.svg'});
+    //viz.line(map(function(k) {k/prec}, genArray(prec)), map(function(k) {affectPrior(k/prec)}, genArray(prec)), {fileName: x + "_" + 'affectPrior_goal.svg'})
+    viz.marginals(L1Listener("full"), {fileName: a + "_" + b + "_" + 'full_goal.svg'});
+} 
+
+generatePlots([2, 7])
+//map(generatePlots, cross(9))

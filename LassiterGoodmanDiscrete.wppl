@@ -7,6 +7,14 @@ var genArray = function(N) {
   return N > 0? genArray(N-1).concat(N) : [0];
 }
 
+// Generate all possible world/affect pairs
+var cross = function(x) {return cross_(x,x)}
+var cross_ = function(x, y) {
+    return x >= 0? zip(repeat(y + 1, function() {return(x)}), genArray(y)).concat(cross_(x - 1, y)) :
+                    [];
+                  
+}
+
 // Discretized Distributions
 var DiscreteUniform = function(N) {
   return Discrete({ps:map(function() {1/(N+1)}, genArray(N))})
@@ -24,9 +32,6 @@ var DiscreteBeta = function(N, a, b) {
 }
 
 // Priors
-var worldPrior = function() {
-    return (sample(DiscreteBeta(prec, 0.3, 0.3)))/prec;
-};
 
 var thresholdPrior = function() {
     return (sample(DiscreteUniform(prec)))/prec;
@@ -48,43 +53,55 @@ var cost = function(u) {
     return u == ""?  0 : COST;
 };
 
-// Agents
-var LiteralListener = cache(function(utterance, threshold) {
-    Infer({method: 'enumerate'},
-          function(){
-              var world = worldPrior();
-              condition(semantics(utterance, world, threshold));
-              return world;
-          }
-    );
-});
+var plotGraph = function(x) {
+    var a = (x[0] + 1)/10
+    var b = (x[1] + 1)/10
 
-var L1Speaker = cache(function(world, threshold) {
-    Infer({method: 'enumerate'},
-          function() {
-              var utterance = utterancePrior();
-              var utility = LiteralListener(utterance, threshold).score(world)
-              factor(RATIONALITY * (utility - cost(utterance)));
-              return utterance;
-          }
-    );
-});
+    var worldPrior = function() {
+        return (sample(DiscreteBeta(prec, a, b)))/prec;
+    };
 
-var L1Listener = function(utterance) {
-    Infer({method: 'enumerate'},
-          function() {
-              var world = worldPrior();
-              var threshold = thresholdPrior();
-              factor(L1Speaker(world, threshold).score(utterance));
-              return {world:world, threshold:threshold};
-          }
-    );
-};
+    // Agents
+    var LiteralListener = cache(function(utterance, threshold) {
+        Infer({method: 'enumerate'},
+              function(){
+                  var world = worldPrior();
+                  condition(semantics(utterance, world, threshold));
+                  return world;
+              }
+        );
+    });
 
-//Visualization
-viz.auto(Infer({method:'enumerate'}, worldPrior), {fileName: 'degreeprior_LG.svg'});
-viz.marginals(L1Listener("full"), {fileName: 'full_LG.svg'});
-viz.marginals(L1Listener("empty"), {fileName: 'empty_LG.svg'});
+    var L1Speaker = cache(function(world, threshold) {
+        Infer({method: 'enumerate'},
+              function() {
+                  var utterance = utterancePrior();
+                  var utility = LiteralListener(utterance, threshold).score(world)
+                  factor(RATIONALITY * (utility - cost(utterance)));
+                  return utterance;
+              }
+        );
+    });
+
+    var L1Listener = function(utterance) {
+        Infer({method: 'enumerate'},
+              function() {
+                  var world = worldPrior();
+                  var threshold = thresholdPrior();
+                  factor(L1Speaker(world, threshold).score(utterance));
+                  return {world:world, threshold:threshold};
+              }
+        );
+    };
+
+    //Visualization
+    viz.auto(Infer({method:'enumerate'}, worldPrior), {fileName: a + "_" + b + "_" + 'degreeprior_LG.svg'});
+    viz.marginals(L1Listener("full"), {fileName: a + "_" + b + "_" + 'full_LG.svg'});
+}
+
+
+plotGraph([2,7]);
+//map(plotGraph, cross(9))
 
 // Save data
 //var file = webpplCsv.openFile("LG13.csv")

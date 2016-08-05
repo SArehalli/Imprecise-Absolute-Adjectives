@@ -1,0 +1,100 @@
+var COST = 2
+var RATIONALITY = 4
+var prec = 100
+
+var kdeScore = (function(dist, value, sigma) {  
+  return Math.log(expectation(Infer({ method: 'MCMC', samples:500, burn:100}, function() {
+    var x = sample(dist);
+    return Math.exp(Gaussian({ mu: x, sigma: sigma }).score(value));
+  })));
+});
+
+// Generate array of size N+1 of 0...N
+var genArray = function(N) {
+  return N > 0? genArray(N-1).concat(N) : [0];
+}
+
+// Discretized Distributions
+var DiscreteUniform = function(N) {
+  return Discrete({ps:map(function() {1/(N+1)}, genArray(N))})
+};
+
+var DiscreteNormal = function(N) {
+  return Discrete({ps:map(function(k) {Math.exp(Gaussian({mu:0.25, sigma:0.15}).score(k/(N)))}, 
+                          genArray(N))});
+}
+
+var DiscreteBeta = function(N, a, b) {
+  // This ones a bit weird - ignores endpoints w/ prob 0
+  return Discrete({ps:map(function(k) {Math.exp(Beta({a:a, b:b}).score((k+1)/(N+2)))}, 
+                          genArray(N))});
+}
+
+// Priors
+var worldPrior = function() {
+    return (sample(Beta({a:0.3, b:0.3})));
+};
+
+var deltaPrior = function() {
+    return (sample(Uniform({a:0, b:1})));
+};
+
+var utterancePrior = function() {
+    var lexicon = ["", "full", "empty"];
+    return lexicon[randomInteger(lexicon.length)];
+};
+
+
+// Literal meaning and cost
+var semantics = function(u, w, d) {
+    return u == "full" ? w + d >= 1 : 
+           u == "empty" ? w - d <= 0 :
+           true;
+};
+var cost = function(u) {
+    return u == ""?  0 : COST;
+};
+
+// Agents
+var LiteralListener = cache(function(utterance, delta) {
+    Infer({method: 'MCMC', samples:5000, burn:200},
+          function(){
+              var world = worldPrior();
+              condition(semantics(utterance, world, delta));
+              return world;
+          }
+    );
+});
+
+var L1Speaker = cache(function(world, delta) {
+    Infer({method: 'enumerate'},
+          function() {
+              var utterance = utterancePrior();
+              //var utility = LiteralListener(utterance, delta).score(world)
+              var utility = kdeScore(LiteralListener(utterance, delta), world, 0.15);
+              factor(RATIONALITY * (utility - cost(utterance)));
+              return utterance;
+          }
+    );
+});
+
+var L1Listener = function(utterance) {
+    Infer({method: 'MCMC', samples:5000, burn:200},
+          function() {
+              var world = worldPrior();
+              var delta = deltaPrior();
+              factor(L1Speaker(world, delta).score(utterance));
+              return {world:world, delta:delta};
+          }
+    );
+};
+
+//Visualization
+viz.auto(Infer({method:'MCMC', samples:5000, burn:200}, worldPrior), {fileName: 'degreeprior_Delta.svg'});
+viz.marginals(L1Listener("full"), {fileName: 'full_Delta.svg'});
+viz.marginals(L1Listener("empty"), {fileName: 'empty_Delta.svg'});
+
+// Save data
+//var file = webpplCsv.openFile("LG13.csv")
+//webpplCsv.writeMarginals(file, L1Listener("full"))
+//webpplCsv.closeFile(file)
