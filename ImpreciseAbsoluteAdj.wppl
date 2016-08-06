@@ -123,9 +123,10 @@ var generatePlots = function(x) {
     //Visualization
 
     viz.auto(Infer({method:'enumerate'}, worldPrior), {fileName: a + "_" + b + 'degreePrior_goal.svg'});
-    //viz.line(map(function(k) {k/prec}, genArray(prec)), map(function(k) {affectPrior(k/prec)}, genArray(prec)), {fileName: x + "_" + 'affectPrior_goal.svg'})
+    viz.line(map(function(k) {k/prec}, genArray(prec)), map(function(k) {affectPrior(k/prec)}, genArray(prec)), {fileName: a + "_" + 'affectPrior_goal.svg'})
     viz.marginals(L1Listener("full"), {fileName: a + "_" + b + "_" + 'full_goal.svg'});
 } 
 
 generatePlots([2, 7])
+generatePlots([2, 2])
 //map(generatePlots, cross(9))

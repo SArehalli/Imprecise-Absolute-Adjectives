@@ -24,9 +24,6 @@ var DiscreteBeta = cache(function(N, a, b) {
 });
 
 // Priors
-var worldPrior = function() {
-    return (sample(DiscreteBeta(prec, 0.3, 0.3)))/prec;
-};
 
 var utterancePrior = function() {
     var lexicon = ["", "full", "empty"];
@@ -49,45 +46,52 @@ var cost = function(u) {
     return u == ""? 0 : COST;
 };
 
-// Agents
-var LiteralListener = cache(function(utterance) {
-    Infer({method: 'enumerate'},
-          function(){
-              var world = worldPrior();
-              condition(semantics(utterance, world));
-              return world;
-          }
-    );
-});
+var plotGraph = function(x) {
+    var a = (x[0] + 1)/10;
+    var b = (x[1] + 1)/10;
 
-var L1Speaker = cache(function(world, granularity) {
-    Infer({method: 'enumerate'},
-          function() {
-              var utterance = utterancePrior();
-              // Generate a Normal centered at a sample from the literal listener (IE, what the listener would interpret)
-              // with variance equal to the granularity (how far the listener can be from the truth before we mind) and use the log-prob
-              // to weight the choice of utterance.
-              var utility = Gaussian({mu:sample(LiteralListener(utterance)), sigma:granularity}).score(world);
-              factor(RATIONALITY * (utility - cost(utterance)));
-              return utterance;
-          }
-    );
-});
+    var worldPrior = function() {
+        return (sample(DiscreteBeta(prec, a, b)))/prec;
+    };
+    // Agents
+    var LiteralListener = cache(function(utterance) {
+        Infer({method: 'enumerate'},
+              function(){
+                  var world = worldPrior();
+                  condition(semantics(utterance, world));
+                  return world;
+              }
+        );
+    });
 
-var L1Listener = function(utterance) {
-    Infer({method: 'enumerate'},
-          function() {
-              var world = worldPrior();
-              var granularity = granularityPrior();
-              factor(L1Speaker(world, granularity).score(utterance));
-              return {world:world, granularity:granularity};
-          }
-    );
-};
+    var L1Speaker = cache(function(world, granularity) {
+        Infer({method: 'enumerate'},
+              function() {
+                  var utterance = utterancePrior();
+                  // Generate a Normal centered at a sample from the literal listener (IE, what the listener would interpret)
+                  // with variance equal to the granularity (how far the listener can be from the truth before we mind) and use the log-prob
+                  // to weight the choice of utterance.
+                  var utility = Gaussian({mu:sample(LiteralListener(utterance)), sigma:granularity}).score(world);
+                  factor(RATIONALITY * (utility - cost(utterance)));
+                  return utterance;
+              }
+        );
+    });
 
-//Visualization
-viz.auto(Infer({method:'enumerate'}, worldPrior));
-print("full")
-viz.marginals(L1Listener("full"));
-print("empty")
-viz.marginals(L1Listener("empty"));
+    var L1Listener = function(utterance) {
+        Infer({method: 'enumerate'},
+              function() {
+                  var world = worldPrior();
+                  var granularity = granularityPrior();
+                  factor(L1Speaker(world, granularity).score(utterance));
+                  return {world:world, granularity:granularity};
+              }
+        );
+    };
+
+    //Visualization
+    viz.marginals(L1Listener("full"), {fileName: a + "_" + b + "_" + "full_horshoe.svg"});
+}
+
+plotGraph([2,7]) // Different prediction
+plotGraph([2,2]) // Sanity check same prediction
