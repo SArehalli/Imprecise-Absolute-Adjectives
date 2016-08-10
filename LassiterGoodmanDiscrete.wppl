@@ -95,12 +95,14 @@ var plotGraph = function(x) {
     };
 
     //Visualization
-    viz.auto(Infer({method:'enumerate'}, worldPrior), {fileName: a + "_" + b + "_" + 'degreeprior_LG.svg'});
-    viz.marginals(L1Listener("full"), {fileName: a + "_" + b + "_" + 'full_LG.svg'});
+    //viz.auto(Infer({method:'enumerate'}, worldPrior), {fileName: a + "_" + b + "_" + 'degreeprior_LG.svg'});
+    //viz.marginals(L1Listener("full"), {fileName: a + "_" + b + "_" + 'full_LG.svg'});
+    return L1Listener;
 }
 
 
-plotGraph([2,7]);
+var model = plotGraph([2,7]);
+model("full")
 //map(plotGraph, cross(9))
 
 // Save data

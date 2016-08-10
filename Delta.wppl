@@ -56,6 +56,8 @@ var cost = function(u) {
 };
 
 // Agents
+
+// Just for show - the L0 listener's interpretation is defined implicitly in the L1 speaker
 var LiteralListener = cache(function(utterance, delta) {
     Infer({method: 'MCMC', samples:5000, burn:200},
           function(){
@@ -70,8 +72,8 @@ var L1Speaker = cache(function(world, delta) {
     Infer({method: 'enumerate'},
           function() {
               var utterance = utterancePrior();
+              var utility = semantics(utterance, world, delta)? -Math.log(delta) : -Infinity;
               //var utility = LiteralListener(utterance, delta).score(world)
-              var utility = kdeScore(LiteralListener(utterance, delta), world, 0.15);
               factor(RATIONALITY * (utility - cost(utterance)));
               return utterance;
           }
